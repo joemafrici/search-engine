@@ -26,7 +26,7 @@ struct Index {
 struct SearchResult {
     filename: String,
     similarity: f32,
-    snippet: String,
+    snippets: Vec<String>,
 }
 
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
@@ -128,26 +128,40 @@ fn query_tfidf(idx: &mut Index, query: &[String]) -> HashMap<String, f32> {
     }
     tfidf
 }
-fn generate_snippet(document: &Document, query: &[String], context_size: usize) -> Option<String> {
+fn generate_snippets(
+    document: &Document,
+    query: &[String],
+    context_size: usize,
+) -> Option<Vec<String>> {
     let content = String::from_utf8_lossy(&document.raw_contents);
     let words: Vec<&str> = content.split_whitespace().collect();
 
-    query.first().and_then(|query_word| {
-        words
-            .iter()
-            .position(|&w| w.to_lowercase() == query_word.to_lowercase())
-            .map(|word_index| {
-                let start = word_index.saturating_sub(context_size);
-                let end = (word_index + context_size + 1).min(words.len());
-                let snippet = words[start..end].join(" ");
+    let snippets: Vec<String> = query
+        .iter()
+        .flat_map(|query_word| {
+            words
+                .iter()
+                .enumerate()
+                .filter(|&(_, word)| word.to_lowercase().contains(&query_word.to_lowercase()))
+                .map(|(word_index, _)| {
+                    let start = word_index.saturating_sub(context_size);
+                    let end = (word_index + context_size + 1).min(words.len());
+                    let snippet = words[start..end].join(" ");
 
-                if start > 0 {
-                    format!("...{}", snippet)
-                } else {
-                    snippet
-                }
-            })
-    })
+                    if start > 0 {
+                        format!("...{}", snippet)
+                    } else {
+                        snippet
+                    }
+                })
+        })
+        .collect();
+
+    if snippets.is_empty() {
+        None
+    } else {
+        Some(snippets)
+    }
 }
 fn search(idx: &mut Index, query: &[String]) -> Vec<SearchResult> {
     let similarities = cosine_similarity(idx, query);
@@ -158,10 +172,10 @@ fn search(idx: &mut Index, query: &[String]) -> Vec<SearchResult> {
                 .iter()
                 .find(|d| d.filename == filename)
                 .and_then(|document| {
-                    generate_snippet(document, query, 40).map(|snippet| SearchResult {
+                    generate_snippets(document, query, 20).map(|snippets| SearchResult {
                         filename,
                         similarity,
-                        snippet,
+                        snippets,
                     })
                 })
         })
@@ -201,11 +215,13 @@ fn main() -> std::io::Result<()> {
 
     let num_unique_tokens = all_documents.tokens.len();
     println!("There are {} unique tokens", num_unique_tokens);
-    let results = search(&mut all_documents, &query);
+    let results: Vec<SearchResult> = search(&mut all_documents, &query);
     for result in &results {
         if result.similarity > 0.0 {
             println!("{} has similarity {}", result.filename, result.similarity);
-            println!("  => {}", result.snippet);
+            for snippet in &result.snippets {
+                println!("      => {}", snippet);
+            }
         }
     }
     Ok(())
