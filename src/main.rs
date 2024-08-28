@@ -135,25 +135,44 @@ fn generate_snippets(
 ) -> Option<Vec<String>> {
     let content = String::from_utf8_lossy(&document.raw_contents);
     let words: Vec<&str> = content.split_whitespace().collect();
+    let mut snippet_ranges: Vec<(usize, usize, String)> = Vec::new();
 
-    let snippets: Vec<String> = query
-        .iter()
-        .flat_map(|query_word| {
-            words
-                .iter()
-                .enumerate()
-                .filter(|&(_, word)| word.to_lowercase().contains(&query_word.to_lowercase()))
-                .map(|(word_index, _)| {
-                    let start = word_index.saturating_sub(context_size);
-                    let end = (word_index + context_size + 1).min(words.len());
-                    let snippet = words[start..end].join(" ");
+    for query_word in query {
+        for (word_index, word) in words.iter().enumerate() {
+            if word.to_lowercase().contains(&query_word.to_lowercase()) {
+                let start = word_index.saturating_sub(context_size);
+                let end = (word_index + context_size + 1).min(words.len());
 
-                    if start > 0 {
-                        format!("...{}", snippet)
-                    } else {
-                        snippet
+                let mut overlapped = false;
+                for range in &mut snippet_ranges {
+                    if (start <= range.1 && end >= range.0) || (range.0 <= end && range.1 >= start)
+                    {
+                        range.0 = range.0.min(start);
+                        range.1 = range.1.max(end);
+                        overlapped = true;
+                        break;
                     }
-                })
+                }
+
+                if !overlapped {
+                    let snippet = words[start..end].join(" ");
+                    snippet_ranges.push((start, end, snippet));
+                }
+            }
+        }
+    }
+
+    snippet_ranges.sort_by_key(|&(start, _, _)| start);
+
+    let snippets: Vec<String> = snippet_ranges
+        .into_iter()
+        .enumerate()
+        .map(|(i, (start, _, snippet))| {
+            if i == 0 && start > 0 {
+                format!("...{}", snippet)
+            } else {
+                snippet
+            }
         })
         .collect();
 
