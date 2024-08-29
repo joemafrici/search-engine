@@ -17,10 +17,80 @@ struct Document {
     tfidf: HashMap<String, f32>,
     total_tokens_in_file: usize,
 }
-struct Index {
+pub struct Index {
     documents: Vec<Document>,
     tokens: HashMap<String, i32>,
     idf: HashMap<String, f32>,
+}
+impl Index {
+    pub fn new(file_path: &str) -> Result<Self, io::Error> {
+        let documents = init(file_path)?;
+        let mut index = Index {
+            documents,
+            tokens: HashMap::<String, i32>::new(),
+            idf: HashMap::<String, f32>::new(),
+        };
+        index.build();
+        Ok(index)
+    }
+    pub fn search(&mut self, query: &str) -> Vec<SearchResult> {
+        let query_tokens: Vec<String> = tokenize(query);
+        let similarities = cosine_similarity(self, &query_tokens);
+        let results: Vec<SearchResult> = similarities
+            .into_iter()
+            .filter_map(|(filename, similarity)| {
+                self.documents
+                    .iter()
+                    .find(|d| d.filename == filename)
+                    .and_then(|document| {
+                        generate_snippets(document, &query_tokens, 20).map(|snippets| {
+                            SearchResult {
+                                filename,
+                                similarity,
+                                snippets,
+                            }
+                        })
+                    })
+            })
+            .collect::<Vec<SearchResult>>();
+        let mut results = results;
+        results.sort_by(|a, b| a.similarity.partial_cmp(&b.similarity).unwrap());
+        results
+    }
+    fn build(&mut self) {
+        self.tf();
+        self.idf();
+        self.tfidf();
+    }
+    fn tf(&mut self) {
+        for document in &mut self.documents {
+            let contents = String::from_utf8_lossy(&document.raw_contents);
+            let tokens = tokenize(&contents);
+            let num_tokens = tokens.len();
+            document.total_tokens_in_file = num_tokens;
+            for token in tokens {
+                *document.tf.entry(token.clone()).or_insert(0.0) += 1.0;
+                *self.tokens.entry(token).or_insert(0) += 1;
+            }
+            for count in document.tf.values_mut() {
+                *count /= num_tokens as f32;
+            }
+        }
+    }
+    fn idf(&mut self) {
+        for (token, frequency) in &self.tokens {
+            let idf = 1.0 + f32::ln(self.documents.len() as f32 / *frequency as f32);
+            self.idf.insert(token.clone(), idf);
+        }
+    }
+    fn tfidf(&mut self) {
+        for document in &mut self.documents {
+            for (term, frequency) in &document.tf {
+                let idf = self.idf.get(term).unwrap_or(&1.0);
+                document.tfidf.insert(term.clone(), frequency * idf);
+            }
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -30,36 +100,36 @@ pub struct SearchResult {
     pub snippets: Vec<String>,
 }
 
-pub fn build_idx(file_path: &str, query: &[String]) -> std::io::Result<Vec<SearchResult>> {
-    let all_documents = match init(file_path) {
-        Ok(all_documents) => all_documents,
-        Err(e) => return Err(e),
-    };
-
-    let mut all_documents = Index {
-        documents: all_documents,
-        tokens: HashMap::<String, i32>::new(),
-        idf: HashMap::<String, f32>::new(),
-    };
-
-    tf(&mut all_documents);
-
-    let mut count = 0;
-    for document in &all_documents.documents {
-        count += document.total_tokens_in_file;
-    }
-    println!("Processed {} tokens", count);
-
-    idf(&mut all_documents);
-
-    tfidf(&mut all_documents);
-
-    let num_unique_tokens = all_documents.tokens.len();
-    println!("There are {} unique tokens", num_unique_tokens);
-    let results: Vec<SearchResult> = search(&mut all_documents, &query);
-
-    Ok(results)
-}
+//pub fn build_idx(file_path: &str, query: &[String]) -> std::io::Result<Vec<SearchResult>> {
+//    let all_documents = match init(file_path) {
+//        Ok(all_documents) => all_documents,
+//        Err(e) => return Err(e),
+//    };
+//
+//    let mut all_documents = Index {
+//        documents: all_documents,
+//        tokens: HashMap::<String, i32>::new(),
+//        idf: HashMap::<String, f32>::new(),
+//    };
+//
+//    tf(&mut all_documents);
+//
+//    let mut count = 0;
+//    for document in &all_documents.documents {
+//        count += document.total_tokens_in_file;
+//    }
+//    println!("Processed {} tokens", count);
+//
+//    idf(&mut all_documents);
+//
+//    tfidf(&mut all_documents);
+//
+//    let num_unique_tokens = all_documents.tokens.len();
+//    println!("There are {} unique tokens", num_unique_tokens);
+//    let results: Vec<SearchResult> = search(&mut all_documents, &query);
+//
+//    Ok(results)
+//}
 
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
     let mut all_documents = Vec::<Document>::new();
@@ -95,35 +165,6 @@ fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
         }
     }
     Ok(all_documents)
-}
-fn tf(idx: &mut Index) {
-    for document in &mut idx.documents {
-        let contents = String::from_utf8_lossy(&document.raw_contents);
-        let tokens = tokenize(&contents);
-        let num_tokens = tokens.len();
-        document.total_tokens_in_file = num_tokens;
-        for token in tokens {
-            *document.tf.entry(token.clone()).or_insert(0.0) += 1.0;
-            *idx.tokens.entry(token).or_insert(0) += 1;
-        }
-        for count in document.tf.values_mut() {
-            *count /= num_tokens as f32;
-        }
-    }
-}
-fn idf(idx: &mut Index) {
-    for (token, frequency) in &idx.tokens {
-        let idf = 1.0 + f32::ln(idx.documents.len() as f32 / *frequency as f32);
-        idx.idf.insert(token.clone(), idf);
-    }
-}
-fn tfidf(idx: &mut Index) {
-    for document in &mut idx.documents {
-        for (term, frequency) in &document.tf {
-            let idf = idx.idf.get(term).unwrap_or(&1.0);
-            document.tfidf.insert(term.clone(), frequency * idf);
-        }
-    }
 }
 fn cosine_similarity(idx: &mut Index, query: &[String]) -> Vec<(String, f32)> {
     let q_tfidf = query_tfidf(idx, query);
@@ -213,25 +254,4 @@ fn generate_snippets(
     } else {
         Some(snippets)
     }
-}
-fn search(idx: &mut Index, query: &[String]) -> Vec<SearchResult> {
-    let similarities = cosine_similarity(idx, query);
-    let results: Vec<SearchResult> = similarities
-        .into_iter()
-        .filter_map(|(filename, similarity)| {
-            idx.documents
-                .iter()
-                .find(|d| d.filename == filename)
-                .and_then(|document| {
-                    generate_snippets(document, query, 20).map(|snippets| SearchResult {
-                        filename,
-                        similarity,
-                        snippets,
-                    })
-                })
-        })
-        .collect::<Vec<SearchResult>>();
-    let mut results = results;
-    results.sort_by(|a, b| a.similarity.partial_cmp(&b.similarity).unwrap());
-    results
 }

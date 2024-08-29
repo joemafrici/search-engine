@@ -1,4 +1,3 @@
-use search_engine::SearchResult;
 use std::env;
 use std::io::{prelude::*, BufReader};
 use std::net::{TcpListener, TcpStream};
@@ -6,8 +5,9 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let file_path = &args[1];
     println!("In directory {file_path}");
-    let query: Vec<String> = args[2..].to_vec();
-    let results = search_engine::build_idx(file_path, &query).expect("failed to build index");
+    //let query: Vec<String> = args[2..].to_vec();
+    //let results = search_engine::build_idx(file_path, &query).expect("failed to build index");
+    let mut index = search_engine::Index::new(file_path).expect("should be able to build index");
 
     //for result in &results {
     //    if result.similarity > 0.0 {
@@ -21,12 +21,12 @@ fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:7878")?;
     println!("server listening on port 7878...");
     for stream in listener.incoming() {
-        handle_client(stream?, &results);
+        handle_client(stream?, &mut index);
     }
 
     Ok(())
 }
-fn handle_client(mut stream: TcpStream, results: &Vec<SearchResult>) {
+fn handle_client(mut stream: TcpStream, index: &mut search_engine::Index) {
     println!("connected to a client");
     let buf_reader = BufReader::new(&mut stream);
     let http_request: Vec<_> = buf_reader
@@ -48,6 +48,7 @@ fn handle_client(mut stream: TcpStream, results: &Vec<SearchResult>) {
         .expect("should have been able to find end of query");
     let query = query[..end_pos].to_string().replace("+", " ");
     println!("query is {}", query);
+    let results = index.search(&query);
 
     let status_line = "HTTP/1.1 200 OK";
     let contents = serde_json::to_string(&results)
