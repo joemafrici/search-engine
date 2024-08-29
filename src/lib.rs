@@ -6,6 +6,8 @@ use std::io;
 use std::path::Path;
 
 use crate::lexer::tokenize;
+use serde::{Deserialize, Serialize};
+//use serde_json::Result;
 
 #[derive(Debug)]
 struct Document {
@@ -21,6 +23,7 @@ struct Index {
     idf: HashMap<String, f32>,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct SearchResult {
     pub filename: String,
     pub similarity: f32,
