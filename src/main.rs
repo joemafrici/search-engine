@@ -29,11 +29,25 @@ fn main() -> std::io::Result<()> {
 fn handle_client(mut stream: TcpStream, results: &Vec<SearchResult>) {
     println!("connected to a client");
     let buf_reader = BufReader::new(&mut stream);
-    let _http_request: Vec<_> = buf_reader
+    let http_request: Vec<_> = buf_reader
         .lines()
         .map(|result| result.unwrap())
         .take_while(|line| !line.is_empty())
         .collect();
+    println!("{:#?}", http_request);
+    let request_line = http_request
+        .first()
+        .expect("should have been able to get first line of http request");
+    let query_start = request_line
+        .find("?query=")
+        .expect("should have been able to find query")
+        + 7;
+    let query = &request_line[query_start..];
+    let end_pos = query
+        .find(' ')
+        .expect("should have been able to find end of query");
+    let query = query[..end_pos].to_string().replace("+", " ");
+    println!("query is {}", query);
 
     let status_line = "HTTP/1.1 200 OK";
     let contents = serde_json::to_string(&results)
