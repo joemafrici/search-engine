@@ -7,7 +7,7 @@ fn main() -> std::io::Result<()> {
     println!("In directory {file_path}");
     let mut index = search_engine::Index::new(file_path).expect("should be able to build index");
 
-    let listener = TcpListener::bind("127.0.0.1:7878")?;
+    let listener = TcpListener::bind("0.0.0.0:7878")?;
     println!("server listening on port 7878...");
     for stream in listener.incoming() {
         handle_client(stream?, &mut index);
