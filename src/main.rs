@@ -5,18 +5,7 @@ fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let file_path = &args[1];
     println!("In directory {file_path}");
-    //let query: Vec<String> = args[2..].to_vec();
-    //let results = search_engine::build_idx(file_path, &query).expect("failed to build index");
     let mut index = search_engine::Index::new(file_path).expect("should be able to build index");
-
-    //for result in &results {
-    //    if result.similarity > 0.0 {
-    //        println!("{} has similarity {}", result.filename, result.similarity);
-    //        for snippet in &result.snippets {
-    //            println!("      => {}", snippet);
-    //        }
-    //    }
-    //}
 
     let listener = TcpListener::bind("127.0.0.1:7878")?;
     println!("server listening on port 7878...");
@@ -38,6 +27,14 @@ fn handle_client(mut stream: TcpStream, index: &mut search_engine::Index) {
     let request_line = http_request
         .first()
         .expect("should have been able to get first line of http request");
+    if request_line.starts_with("OPTIONS") {
+        let response = format!(
+            "HTTP/1.1 204 No Content\r\n{}Cache-Control: max-age=86400\r\n\r\n",
+            create_cors_header()
+        );
+        stream.write_all(response.as_bytes()).unwrap();
+        return;
+    }
     let query_start = request_line
         .find("?query=")
         .expect("should have been able to find query")
@@ -57,4 +54,10 @@ fn handle_client(mut stream: TcpStream, index: &mut search_engine::Index) {
     let response = format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
     stream.write_all(response.as_bytes()).unwrap();
+}
+fn create_cors_header() -> String {
+    "Access-Control-Allow-Origin: *\r\n\
+     Access-Control-Allow-Methods: GET, OPTIONS\r\n\
+     Access-Control-Allow-Headers: Content-Type\r\n"
+        .to_string()
 }
