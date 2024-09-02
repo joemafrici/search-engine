@@ -1,8 +1,9 @@
-use axum::extract::Request;
+use axum::extract::{Query, Request};
 use axum::{http::Method, http::StatusCode, routing::get, Router};
 use hyper::body::Incoming;
 use hyper_util::rt::TokioExecutor;
 use rustls_pemfile::{certs, pkcs8_private_keys};
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
@@ -64,11 +65,14 @@ async fn main() -> std::io::Result<()> {
         });
     }
 }
-async fn handle_client() -> Result<String, StatusCode> {
-    // parse request
-    // handle cors
-    // send response
+async fn handle_client(
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<String, StatusCode> {
     println!("connected to a client");
+    // parse request
+    let search_query = params.get("query").unwrap();
+    println!("got search query {}", search_query);
+    // send response
     //let results = index.search("plato nietzsche");
 
     //let contents = serde_json::to_string(&results)
