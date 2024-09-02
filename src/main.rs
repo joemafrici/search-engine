@@ -25,7 +25,7 @@ async fn main() -> std::io::Result<()> {
         PathBuf::from("/etc/letsencrypt/live/gojoe.dev/fullchain.pem"),
     );
     let tls_acceptor = TlsAcceptor::from(rustls_config);
-    let bind = "[::1]:7878";
+    let bind = "[::]:7878";
 
     let tcp_listener = TcpListener::bind(bind).await.unwrap();
     println!("server listening on {} ...", bind);
