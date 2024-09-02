@@ -1,14 +1,15 @@
-use axum::extract::{Query, Request};
+use axum::extract::{Query, Request, State};
 use axum::{http::Method, http::StatusCode, routing::get, Router};
 use hyper::body::Incoming;
 use hyper_util::rt::TokioExecutor;
 use rustls_pemfile::{certs, pkcs8_private_keys};
+use search_engine::Index;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tokio_rustls::{rustls::ServerConfig, TlsAcceptor};
 use tower_http::cors::{Any, CorsLayer};
@@ -19,8 +20,9 @@ async fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
     let file_path = &args[1];
     println!("In directory {file_path}");
-    let mut _index =
-        Arc::new(search_engine::Index::new(file_path).expect("should be able to build index"));
+    let index = Arc::new(Mutex::new(
+        search_engine::Index::new(file_path).expect("should be able to build index"),
+    ));
     let rustls_config = rustls_server_config(
         PathBuf::from("/etc/letsencrypt/live/gojoe.dev/privkey.pem"),
         PathBuf::from("/etc/letsencrypt/live/gojoe.dev/fullchain.pem"),
@@ -31,11 +33,14 @@ async fn main() -> std::io::Result<()> {
     let tcp_listener = TcpListener::bind(bind).await.unwrap();
     println!("server listening on {} ...", bind);
 
-    let app = Router::new().route("/", get(handle_client)).layer(
-        CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods([Method::GET]),
-    );
+    let app = Router::new()
+        .route("/search", get(handle_client))
+        .with_state(index)
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods([Method::GET]),
+        );
 
     loop {
         let tower_service = app.clone();
@@ -67,19 +72,23 @@ async fn main() -> std::io::Result<()> {
 }
 async fn handle_client(
     Query(params): Query<HashMap<String, String>>,
+    State(index): State<Arc<Mutex<Index>>>,
 ) -> Result<String, StatusCode> {
     println!("connected to a client");
     // parse request
     let search_query = params.get("query").unwrap();
     println!("got search query {}", search_query);
     // send response
-    //let results = index.search("plato nietzsche");
+    let results = {
+        let mut index = index.lock().unwrap();
+        index.search("plato nietzsche")
+    };
 
-    //let contents = serde_json::to_string(&results)
-    //    .expect("should have been able to convert search results to json");
+    let contents = serde_json::to_string(&results)
+        .expect("should have been able to convert search results to json");
 
-    //Ok(response)
-    Ok("hello there".to_string())
+    Ok(contents)
+    //Ok("hello there".to_string())
 }
 fn rustls_server_config(key: impl AsRef<Path>, cert: impl AsRef<Path>) -> Arc<ServerConfig> {
     let mut key_reader = BufReader::new(File::open(key).unwrap());
