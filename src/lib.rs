@@ -1,4 +1,5 @@
 mod lexer;
+use pdf_extract;
 use std::collections::HashMap;
 use std::f32;
 use std::fs;
@@ -100,37 +101,6 @@ pub struct SearchResult {
     pub snippets: Vec<String>,
 }
 
-//pub fn build_idx(file_path: &str, query: &[String]) -> std::io::Result<Vec<SearchResult>> {
-//    let all_documents = match init(file_path) {
-//        Ok(all_documents) => all_documents,
-//        Err(e) => return Err(e),
-//    };
-//
-//    let mut all_documents = Index {
-//        documents: all_documents,
-//        tokens: HashMap::<String, i32>::new(),
-//        idf: HashMap::<String, f32>::new(),
-//    };
-//
-//    tf(&mut all_documents);
-//
-//    let mut count = 0;
-//    for document in &all_documents.documents {
-//        count += document.total_tokens_in_file;
-//    }
-//    println!("Processed {} tokens", count);
-//
-//    idf(&mut all_documents);
-//
-//    tfidf(&mut all_documents);
-//
-//    let num_unique_tokens = all_documents.tokens.len();
-//    println!("There are {} unique tokens", num_unique_tokens);
-//    let results: Vec<SearchResult> = search(&mut all_documents, &query);
-//
-//    Ok(results)
-//}
-
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
     let mut all_documents = Vec::<Document>::new();
     let dir = Path::new(file_path);
@@ -155,13 +125,25 @@ fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
                 .to_string_lossy()
                 .into_owned();
             let raw_contents = fs::read(&path)?;
-            all_documents.push(Document {
-                filename,
-                raw_contents,
-                tf: HashMap::new(),
-                tfidf: HashMap::new(),
-                total_tokens_in_file: 0,
-            });
+            if filename.to_lowercase().ends_with(".pdf") {
+                let text = pdf_extract::extract_text(&path)
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                all_documents.push(Document {
+                    filename,
+                    raw_contents: text.into_bytes(),
+                    tf: HashMap::new(),
+                    tfidf: HashMap::new(),
+                    total_tokens_in_file: 0,
+                });
+            } else {
+                all_documents.push(Document {
+                    filename,
+                    raw_contents,
+                    tf: HashMap::new(),
+                    tfidf: HashMap::new(),
+                    total_tokens_in_file: 0,
+                });
+            }
         }
     }
     Ok(all_documents)
