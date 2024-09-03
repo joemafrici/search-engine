@@ -81,7 +81,7 @@ async fn handle_client(
     // send response
     let results = {
         let mut index = index.lock().unwrap();
-        index.search("plato nietzsche")
+        index.search(search_query)
     };
 
     let contents = serde_json::to_string(&results)
