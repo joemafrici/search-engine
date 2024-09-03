@@ -11,16 +11,16 @@ use serde::{Deserialize, Serialize};
 //use serde_json::Result;
 
 #[derive(Debug)]
-struct Document {
+pub struct Document {
     filename: String,
     raw_contents: Vec<u8>,
     tf: HashMap<String, f32>,
     tfidf: HashMap<String, f32>,
-    total_tokens_in_file: usize,
+    pub total_tokens_in_file: usize,
 }
 pub struct Index {
-    documents: Vec<Document>,
-    tokens: HashMap<String, i32>,
+    pub documents: Vec<Document>,
+    pub tokens: HashMap<String, i32>,
     idf: HashMap<String, f32>,
 }
 impl Index {
@@ -124,6 +124,7 @@ fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
                 })?
                 .to_string_lossy()
                 .into_owned();
+            println!("reading {}", filename);
             let raw_contents = fs::read(&path)?;
             if filename.to_lowercase().ends_with(".pdf") {
                 let text = pdf_extract::extract_text(&path)
