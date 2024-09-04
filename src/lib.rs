@@ -56,6 +56,7 @@ impl Index {
             .collect::<Vec<SearchResult>>();
         let mut results = results;
         results.sort_by(|a, b| a.similarity.partial_cmp(&b.similarity).unwrap());
+        results.reverse();
         results
     }
     fn build(&mut self) {
