@@ -2,6 +2,7 @@ use crate::document::Document;
 use crate::lexer::tokenize;
 use crate::search::generate_snippets;
 use crate::search::{cosine_similarity, SearchResult};
+use epub::doc::EpubDoc;
 use pdf_extract;
 use std::collections::HashMap;
 use std::fs;
@@ -29,18 +30,22 @@ impl Index {
         let results: Vec<SearchResult> = similarities
             .into_iter()
             .filter_map(|(filename, similarity)| {
-                self.documents
-                    .iter()
-                    .find(|d| d.filename == filename)
-                    .and_then(|document| {
-                        generate_snippets(document, &query_tokens, 20).map(|snippets| {
-                            SearchResult {
-                                filename,
-                                similarity,
-                                snippets,
-                            }
+                if similarity > 0.0 {
+                    self.documents
+                        .iter()
+                        .find(|d| d.filename == filename)
+                        .and_then(|document| {
+                            generate_snippets(document, &query_tokens, 20).map(|snippets| {
+                                SearchResult {
+                                    filename,
+                                    similarity,
+                                    snippets,
+                                }
+                            })
                         })
-                    })
+                } else {
+                    None
+                }
             })
             .collect::<Vec<SearchResult>>();
         let mut results = results;
@@ -84,50 +89,95 @@ impl Index {
     }
 }
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
+    println!("reading filepath {}", file_path);
     let mut all_documents = Vec::<Document>::new();
     let dir = Path::new(file_path);
     if !dir.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            "path is not directory",
+            format!("path is not directory: {}", file_path),
         ));
     }
     for entry in fs::read_dir(dir)? {
-        let entry = entry?;
+        let entry = entry.map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to read directory entry: {}", e),
+            )
+        })?;
         let path = entry.path();
         if path.is_file() {
             let filename = path
                 .file_name()
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::Other,
-                        "Should have been able to extract file name",
-                    )
-                })?
+                .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to extract file name"))?
                 .to_string_lossy()
                 .into_owned();
-            println!("reading {}", filename);
-            let raw_contents = fs::read(&path)?;
-            if filename.to_lowercase().ends_with(".pdf") {
-                let text = pdf_extract::extract_text(&path)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-                all_documents.push(Document {
-                    filename,
-                    raw_contents: text.into_bytes(),
-                    tf: HashMap::new(),
-                    tfidf: HashMap::new(),
-                    total_tokens_in_file: 0,
-                });
-            } else {
-                all_documents.push(Document {
-                    filename,
-                    raw_contents,
-                    tf: HashMap::new(),
-                    tfidf: HashMap::new(),
-                    total_tokens_in_file: 0,
-                });
+            println!("Attempting to read file: {}", filename);
+            match process_file(&path, &filename) {
+                Ok(document) => all_documents.push(document),
+                Err(e) => eprintln!("Error processing file {}: {}", filename, e),
             }
         }
     }
-    Ok(all_documents)
+    if all_documents.is_empty() {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "No valid documents found in directory",
+        ))
+    } else {
+        Ok(all_documents)
+    }
+}
+fn process_file(path: &Path, filename: &str) -> Result<Document, io::Error> {
+    if filename.to_lowercase().ends_with(".pdf") {
+        process_pdf(path, filename)
+    } else if filename.to_lowercase().ends_with(".epub") {
+        process_epub(path, filename)
+    } else if filename.to_lowercase().ends_with(".txt") {
+        process_txt(path, filename)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("unsopported filetype for: {}", filename),
+        ))
+    }
+}
+fn process_pdf(path: &Path, filename: &str) -> Result<Document, io::Error> {
+    let text =
+        pdf_extract::extract_text(&path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    Ok(Document {
+        filename: filename.to_string(),
+        raw_contents: text.into_bytes(),
+        tf: HashMap::new(),
+        tfidf: HashMap::new(),
+        total_tokens_in_file: 0,
+    })
+}
+fn process_epub(path: &Path, filename: &str) -> Result<Document, io::Error> {
+    let mut doc = EpubDoc::new(&path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let mut content = String::new();
+    let len = doc.spine.len();
+    for _ in 1..len {
+        if doc.go_next() {
+            let (thing, _) = doc.get_current_str().unwrap();
+            content.push_str(&thing);
+        }
+    }
+    Ok(Document {
+        filename: filename.to_string(),
+        raw_contents: content.into_bytes(),
+        tf: HashMap::new(),
+        tfidf: HashMap::new(),
+        total_tokens_in_file: 0,
+    })
+}
+fn process_txt(path: &Path, filename: &str) -> Result<Document, io::Error> {
+    let raw_contents = fs::read(&path)?;
+    Ok(Document {
+        filename: filename.to_string(),
+        raw_contents,
+        tf: HashMap::new(),
+        tfidf: HashMap::new(),
+        total_tokens_in_file: 0,
+    })
 }

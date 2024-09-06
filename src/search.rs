@@ -15,18 +15,29 @@ pub fn cosine_similarity(idx: &mut Index, query: &[String]) -> Vec<(String, f32)
     for document in &idx.documents {
         let mut dot_product: f32 = 0.0;
         let mut query_magnitude: f32 = 0.0;
-        let doc_magnitude: f32 = document.tfidf.values().map(|&v| v.powi(2)).sum();
+        let doc_magnitude: f32 = document
+            .tfidf
+            .values()
+            .map(|&v| v.powi(2))
+            .sum::<f32>()
+            .sqrt();
         for (term, tfidf) in &q_tfidf {
             let doc_tfidf = document.tfidf.get(term).unwrap_or(&0.0);
             dot_product += tfidf * doc_tfidf;
             query_magnitude += tfidf.powi(2);
         }
 
-        let similarity = dot_product / (query_magnitude.sqrt() * doc_magnitude.sqrt());
+        query_magnitude = query_magnitude.sqrt();
+
+        let similarity = if query_magnitude > 0.0 && doc_magnitude > 0.0 {
+            dot_product / (query_magnitude * doc_magnitude)
+        } else {
+            0.0
+        };
         similarities.push((document.filename.clone(), similarity));
     }
 
-    similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     similarities
 }
 fn query_tfidf(idx: &mut Index, query: &[String]) -> HashMap<String, f32> {
