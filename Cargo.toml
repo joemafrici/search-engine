@@ -3,6 +3,23 @@ name = "search-engine"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "search_engine"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cli"
+path = "src/bin/cli.rs"
+
+[[bin]]
+name = "web"
+path = "src/bin/web.rs"
+
+[features]
+default = ["cli"]
+cli = []
+web = []
+
 [dependencies]
 axum = "0.7.5"
 hyper = { version = "1.4.1", features = ["http2"] }

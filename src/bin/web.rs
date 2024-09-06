@@ -3,7 +3,7 @@ use axum::{http::Method, http::StatusCode, routing::get, Router};
 use hyper::body::Incoming;
 use hyper_util::rt::TokioExecutor;
 use rustls_pemfile::{certs, pkcs8_private_keys};
-use search_engine::Index;
+use search_engine::index::Index;
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
@@ -21,7 +21,7 @@ async fn main() -> std::io::Result<()> {
     let file_path = &args[1];
     println!("In directory {file_path}");
     let index = Arc::new(Mutex::new(
-        search_engine::Index::new(file_path).expect("should be able to build index"),
+        search_engine::index::Index::new(file_path).expect("should be able to build index"),
     ));
     let _results = {
         let index = index.lock().unwrap();
