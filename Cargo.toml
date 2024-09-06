@@ -23,6 +23,7 @@ web = []
 [dependencies]
 axum = "0.7.5"
 epub = "2.1.2"
+html2text = "0.12.5"
 hyper = { version = "1.4.1", features = ["http2"] }
 hyper-util = "0.1.7"
 pdf-extract = "0.7.9"

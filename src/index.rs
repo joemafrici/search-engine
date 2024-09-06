@@ -3,6 +3,7 @@ use crate::lexer::tokenize;
 use crate::search::generate_snippets;
 use crate::search::{cosine_similarity, SearchResult};
 use epub::doc::EpubDoc;
+use html2text::from_read;
 use pdf_extract;
 use std::collections::HashMap;
 use std::fs;
@@ -50,7 +51,7 @@ impl Index {
             .collect::<Vec<SearchResult>>();
         let mut results = results;
         results.sort_by(|a, b| a.similarity.partial_cmp(&b.similarity).unwrap());
-        results.reverse();
+        //results.reverse();
         results
     }
     fn build(&mut self) {
@@ -154,14 +155,17 @@ fn process_pdf(path: &Path, filename: &str) -> Result<Document, io::Error> {
     })
 }
 fn process_epub(path: &Path, filename: &str) -> Result<Document, io::Error> {
-    let mut doc = EpubDoc::new(&path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let mut doc = EpubDoc::new(&path)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Failed to open EPUB: {}", e)))?;
     let mut content = String::new();
     let len = doc.spine.len();
-    for _ in 1..len {
-        if doc.go_next() {
-            let (thing, _) = doc.get_current_str().unwrap();
-            content.push_str(&thing);
-        }
+    for _ in 0..len {
+        if let Some((_, html_content)) = doc.get_current_str() {
+            let text = from_read(html_content.as_bytes(), html_content.len());
+            content.push_str(&text);
+            content.push_str("\n");
+        };
+        doc.go_next();
     }
     Ok(Document {
         filename: filename.to_string(),
