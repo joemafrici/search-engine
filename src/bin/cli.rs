@@ -5,6 +5,7 @@ use text_io::read;
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
+
     let mut index = Index::new("../../../books").expect("failed to build index");
     println!("found {} unique tokens", index.tokens.len());
     let mut num_tokens: usize = 0;
