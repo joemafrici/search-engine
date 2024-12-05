@@ -15,6 +15,10 @@ pub struct Index {
     pub tokens: HashMap<String, i32>,
     pub idf: HashMap<String, f32>,
 }
+pub struct IndexStats {
+    pub total_tokens: usize,
+    pub unique_tokens: usize,
+}
 impl Index {
     pub fn new(file_path: &str) -> Result<Self, io::Error> {
         let documents = init(file_path)?;
@@ -55,6 +59,17 @@ impl Index {
         println!("got {} search results for: {}", results.len(), query);
         results.reverse();
         results
+    }
+    pub fn get_stats(&mut self) -> IndexStats {
+        let mut total_tokens = 0;
+        for doc in &self.documents {
+            total_tokens += doc.total_tokens_in_file;
+        }
+
+        IndexStats {
+            total_tokens,
+            unique_tokens: self.tokens.len(),
+        }
     }
     fn build(&mut self) {
         self.tf();

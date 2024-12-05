@@ -16,6 +16,12 @@ pub struct SearchResultsFFI {
     count: usize,
 }
 
+#[repr(C)]
+pub struct IndexStats {
+    total_tokens: usize,
+    unique_tokens: usize,
+}
+
 static mut GLOBAL_INDEX: Option<Index> = None;
 
 #[no_mangle]
@@ -75,6 +81,7 @@ pub extern "C" fn perform_search(query: *const c_char) -> *mut SearchResultsFFI 
     let mut ffi_results = Vec::with_capacity(results.len());
 
     for result in results {
+        // TODO: crashed here when I searched "philosophy"
         let filename = CString::new(result.filename).unwrap();
 
         let mut snippet_ptrs = Vec::with_capacity(result.snippets.len());
@@ -142,5 +149,31 @@ pub extern "C" fn free_search_results(results: *mut SearchResultsFFI) {
             }
         }
         let _ = Vec::from_raw_parts(container.results, container.count, container.count);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn get_stats() -> *mut IndexStats {
+    let results = unsafe {
+        match &mut GLOBAL_INDEX {
+            Some(index) => index.get_stats(),
+            None => return ptr::null_mut(),
+        }
+    };
+
+    let results_container = Box::new(IndexStats {
+        total_tokens: results.total_tokens,
+        unique_tokens: results.unique_tokens,
+    });
+
+    Box::into_raw(results_container)
+}
+
+#[no_mangle]
+pub extern "C" fn free_stats(stats: *mut IndexStats) {
+    if !stats.is_null() {
+        unsafe {
+            let _ = Box::from_raw(stats);
+        }
     }
 }
