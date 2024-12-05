@@ -1,3 +1,4 @@
+use crate::db;
 use crate::document::Document;
 use crate::lexer::tokenize;
 use crate::search::generate_snippets;
@@ -36,7 +37,7 @@ impl Index {
                         .iter()
                         .find(|d| d.filename == filename)
                         .and_then(|document| {
-                            generate_snippets(document, &query_tokens, 20).map(|snippets| {
+                            generate_snippets(document, &query_tokens, 80).map(|snippets| {
                                 SearchResult {
                                     filename,
                                     similarity,
@@ -92,7 +93,6 @@ impl Index {
 }
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
     println!("reading filepath {}", file_path);
-    let mut all_documents = Vec::<Document>::new();
     let dir = Path::new(file_path);
     if !dir.is_dir() {
         return Err(io::Error::new(
@@ -100,27 +100,52 @@ fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
             format!("path is not directory: {}", file_path),
         ));
     }
-    for entry in fs::read_dir(dir)? {
-        let entry = entry.map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to read directory entry: {}", e),
-            )
-        })?;
-        let path = entry.path();
-        if path.is_file() {
-            let filename = path
-                .file_name()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Failed to extract file name"))?
-                .to_string_lossy()
-                .into_owned();
-            println!("Attempting to read file: {}", filename);
-            match process_file(&path, &filename) {
-                Ok(document) => all_documents.push(document),
-                Err(e) => eprintln!("Error processing file {}: {}", filename, e),
+
+    let mut file_paths = Vec::new();
+    fn collect_files(dir: &Path, files: &mut Vec<String>) -> Result<(), io::Error> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                collect_files(&path, files)?;
+            } else if path.is_file() {
+                if let Some(path_str) = path.to_str() {
+                    files.push(path_str.to_string());
+                }
+            }
+        }
+        Ok(())
+    }
+    collect_files(dir, &mut file_paths)?;
+
+    let conn = db::init_db()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Database error: {}", e)))?;
+
+    let mut all_documents = db::get_all_documents(&conn).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to get documents from database: {}", e),
+        )
+    })?;
+
+    for file_path in file_paths {
+        let path = Path::new(&file_path);
+        if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+            if !all_documents.iter().any(|doc| doc.filename == filename) {
+                println!("Processing new file: {}", filename);
+                match process_file(path, filename) {
+                    Ok(document) => {
+                        if let Err(e) = db::insert_document(&conn, &document) {
+                            eprintln!("Failed to store document {} in database: {}", filename, e);
+                        }
+                        all_documents.push(document)
+                    }
+                    Err(e) => eprintln!("Error processing file {}: {}", filename, e),
+                }
             }
         }
     }
+
     if all_documents.is_empty() {
         Err(io::Error::new(
             io::ErrorKind::Other,
@@ -145,15 +170,28 @@ fn process_file(path: &Path, filename: &str) -> Result<Document, io::Error> {
     }
 }
 fn process_pdf(path: &Path, filename: &str) -> Result<Document, io::Error> {
-    let text =
-        pdf_extract::extract_text(&path).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    Ok(Document {
-        filename: filename.to_string(),
-        raw_contents: text.into_bytes(),
-        tf: HashMap::new(),
-        tfidf: HashMap::new(),
-        total_tokens_in_file: 0,
-    })
+    match std::panic::catch_unwind(|| pdf_extract::extract_text(path)) {
+        Ok(result) => match result {
+            Ok(text) => Ok(Document {
+                filename: filename.to_string(),
+                raw_contents: text.into_bytes(),
+                tf: HashMap::new(),
+                tfidf: HashMap::new(),
+                total_tokens_in_file: 0,
+            }),
+            Err(e) => Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("PDF extraction error for {}: {}", filename, e),
+            )),
+        },
+        Err(_) => {
+            eprintln!("pdf_extract lib panic while processing {}", filename);
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("pdf_extract lib crash while processing {}", filename),
+            ))
+        }
+    }
 }
 fn process_epub(path: &Path, filename: &str) -> Result<Document, io::Error> {
     let mut doc = EpubDoc::new(&path)

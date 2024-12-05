@@ -4,7 +4,7 @@ use rusqlite::{Connection, Result};
 use std::collections::HashMap;
 
 pub fn init_db() -> Result<Connection> {
-    let conn = Connection::open("search_engine.db")?;
+    let conn = Connection::open("/Users/deepwater/Documents/search_engine.db")?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS documents (
@@ -13,7 +13,7 @@ pub fn init_db() -> Result<Connection> {
             raw_contents BLOB NOT NULL,
             tf TEXT NOT NULL,
             tfidf TEXT NOT NULL,
-            total_tokens_in_file TEXT NOT NULL
+            total_tokens_in_file INTEGER NOT NULL
         )",
         [],
     )?;
@@ -45,18 +45,50 @@ pub fn get_all_documents(conn: &Connection) -> Result<Vec<Document>> {
     let mut stmt = conn.prepare("SELECT * from documents")?;
 
     let document_iter = stmt.query_map([], |row| {
-        let tf: HashMap<String, f32> = serde_json::from_str(row.get::<_, String>(2)?.as_str())
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        let tfidf: HashMap<String, f32> =
-            serde_json::from_str(row.get::<_, String>(3)?.as_str())
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        println!("reading row from database");
+
+        let filename: String = row.get(1)?;
+        println!("got filename: {}", filename);
+
+        let raw_contents: Vec<u8> = match row.get(2) {
+            Ok(contents) => contents,
+            Err(e) => {
+                println!("Error reading raw contents: {:?}", e);
+                return Err(e);
+            }
+        };
+        println!("got raw_contents of length: {}", raw_contents.len());
+
+        let tf_str: String = row.get(3)?;
+
+        let tf: HashMap<String, f32> = match serde_json::from_str(&tf_str) {
+            Ok(map) => map,
+            Err(e) => {
+                println!("Error parsing tf json: {}", e);
+                return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(e)));
+            }
+        };
+        println!("parsed tf map");
+
+        let tfidf_str: String = row.get(4)?;
+        let tfidf: HashMap<String, f32> = match serde_json::from_str(&tfidf_str) {
+            Ok(map) => map,
+            Err(e) => {
+                println!("Error parsing tfidf json: {}", e);
+                return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(e)));
+            }
+        };
+        println!("parsed tfidf map");
+
+        let total_tokens: i64 = row.get(5)?;
+        println!("got total tokens: {}", total_tokens);
 
         Ok(Document {
-            filename: row.get(0)?,
-            raw_contents: row.get(1)?,
+            filename,
+            raw_contents,
             tf,
             tfidf,
-            total_tokens_in_file: row.get::<_, i64>(4)? as usize,
+            total_tokens_in_file: total_tokens as usize,
         })
     })?;
 
