@@ -1,5 +1,6 @@
 # About
 A demo is available at https://gojoe.dev/search
+
 I created this search engine so that I can perform search queries across my entire ebook library. Some time ago I became interested in the idea of reading books in a non-linear manner.
 Think instead of reading a book from start to finish, reading it by starting in the middle, or at the end, or hopping around different pages forwards and backwards.
 The idea of hopping across all my books followed naturally. Then I thought "What if I could hop around acorrding to some theme?"
