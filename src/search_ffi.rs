@@ -22,6 +22,12 @@ pub struct IndexStats {
     unique_tokens: usize,
 }
 
+#[repr(C)]
+pub struct DocumentNamesFFI {
+    names: *mut *mut c_char,
+    count: usize,
+}
+
 static mut GLOBAL_INDEX: Option<Index> = None;
 
 #[no_mangle]
@@ -175,5 +181,58 @@ pub extern "C" fn free_stats(stats: *mut IndexStats) {
         unsafe {
             let _ = Box::from_raw(stats);
         }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn get_all_document_names() -> *mut DocumentNamesFFI {
+    let names = unsafe {
+        match &mut GLOBAL_INDEX {
+            Some(index) => index.get_all_doc_names(),
+            None => return ptr::null_mut(),
+        }
+    };
+
+    let mut c_names: Vec<*mut c_char> = Vec::with_capacity(names.len());
+    for name in names {
+        let c_name = match CString::new(name) {
+            Ok(s) => s.into_raw(),
+            Err(_) => continue,
+        };
+        c_names.push(c_name);
+    }
+
+    let names_ptr = c_names.as_ptr() as *mut *mut c_char;
+    let count = c_names.len();
+    std::mem::forget(c_names);
+
+    let result = Box::new(DocumentNamesFFI {
+        names: names_ptr,
+        count,
+    });
+
+    Box::into_raw(result)
+}
+
+#[no_mangle]
+pub extern "C" fn free_document_names(names: *mut DocumentNamesFFI) {
+    if names.is_null() {
+        return;
+    }
+
+    unsafe {
+        let names_container = Box::from_raw(names);
+        let names_slice = std::slice::from_raw_parts(names_container.names, names_container.count);
+        for &name in names_slice {
+            if !name.is_null() {
+                let _ = CString::from_raw(name);
+            }
+        }
+
+        let _ = Vec::from_raw_parts(
+            names_container.names,
+            names_container.count,
+            names_container.count,
+        );
     }
 }

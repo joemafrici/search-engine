@@ -31,7 +31,7 @@ impl Index {
         Ok(index)
     }
     pub fn search(&mut self, query: &str) -> Vec<SearchResult> {
-        let query_tokens: Vec<String> = tokenize(query);
+        let query_tokens: Vec<String> = self.parse_query(query);
         let similarities = cosine_similarity(self, &query_tokens);
         let results: Vec<SearchResult> = similarities
             .into_iter()
@@ -71,6 +71,12 @@ impl Index {
             unique_tokens: self.tokens.len(),
         }
     }
+    pub fn get_all_doc_names(&mut self) -> Vec<String> {
+        self.documents
+            .iter()
+            .map(|doc| doc.filename.clone())
+            .collect()
+    }
     fn build(&mut self) {
         self.tf();
         self.idf();
@@ -104,6 +110,39 @@ impl Index {
                 document.tfidf.insert(term.clone(), frequency * idf);
             }
         }
+    }
+    fn parse_query(&mut self, query: &str) -> Vec<String> {
+        let mut in_quotes = false;
+        let mut current_phrase= String::new();
+        let mut query_tokens = Vec::<String>::new();
+
+        for c in query.chars() {
+            match c {
+                '"' => {
+                    in_quotes = !in_quotes;
+
+                    if !in_quotes && !current_phrase.is_empty() {
+                        query_tokens.push(current_phrase.clone());
+                        current_phrase.clear();
+                    }
+                },
+                /// taco "taco bell" taco
+                ' ' => {
+                    if !in_quotes && !current_phrase.is_empty() {
+                        query_tokens.push(current_phrase.clone());
+                        current_phrase.clear();
+                    }
+                    if in_quotes {
+                        current_phrase.push(c);
+                    }
+                },
+                _ => {
+                    current_phrase.push(c);
+                }
+            }
+        }
+        query_tokens.push(current_phrase.clone());
+        query_tokens
     }
 }
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {

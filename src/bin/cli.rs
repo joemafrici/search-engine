@@ -34,7 +34,9 @@ fn main() {
 
     let mut index = {
         println!("building index from files...");
-        let index = Index::new("../../../books").expect("failed to build index");
+        let index =
+            Index::new("/Users/deepwater/Library/Mobile Documents/com~apple~CloudDocs/books")
+                .expect("failed to build index");
         println!("found {} unique tokens", index.tokens.len());
         index
     };
