@@ -7,7 +7,8 @@ The idea of hopping across all my books followed naturally. Then I thought "What
 The search engine was born of this idea. For example I can type in "Plato" and get a list of passages across all my ebooks where Plato is mentioned. 
 
 ## Functionality
-I implemented Term Frequency-Inverse Document Frequency to determine how relevant each word is to each book and across all books.
-I implemented Cosine Similarity to rank the relevance of each book to a given search query.
-For each book that is deemed relevant a collection of snippets are generated which allows the user to see the context in which the query words appear in the book.
-I created a foreign function interface which allows a MacOS app I created to directly call the Rust search engine functions.
+- Implementation of Term Frequency-Inverse Document Frequency to determine how relevant each word is to each book and across all books.
+- Implementation of Cosine Similarity to rank the relevance of each book to a given search query.
+- For each book that is deemed relevant a collection of snippets are generated which allows the user to see the context in which the query words appear in the book.
+- Foreign function interface which allows a MacOS app I created to directly call the Rust search engine functions.
+- Search index is stored in an SQLite database so that the performance cost of reading an ebook file is paid only once
