@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::Path;
+
+#[derive(Default)]
 pub struct Index {
     pub documents: Vec<Document>,
     pub tokens: HashMap<String, i32>,
@@ -113,7 +115,7 @@ impl Index {
     }
     fn parse_query(&mut self, query: &str) -> Vec<String> {
         let mut in_quotes = false;
-        let mut current_phrase= String::new();
+        let mut current_phrase = String::new();
         let mut query_tokens = Vec::<String>::new();
 
         for c in query.chars() {
@@ -125,7 +127,7 @@ impl Index {
                         query_tokens.push(current_phrase.clone());
                         current_phrase.clear();
                     }
-                },
+                }
                 /// taco "taco bell" taco
                 ' ' => {
                     if !in_quotes && !current_phrase.is_empty() {
@@ -135,7 +137,7 @@ impl Index {
                     if in_quotes {
                         current_phrase.push(c);
                     }
-                },
+                }
                 _ => {
                     current_phrase.push(c);
                 }
