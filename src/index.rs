@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::Path;
+
+#[derive(Default)]
 pub struct Index {
     pub documents: Vec<Document>,
     pub tokens: HashMap<String, i32>,

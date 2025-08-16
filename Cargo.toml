@@ -16,6 +16,10 @@ path = "src/bin/cli.rs"
 name = "web"
 path = "src/bin/web.rs"
 
+[[bin]]
+name = "gui"
+path = "src/bin/gui.rs"
+
 [features]
 default = ["cli"]
 cli = []
@@ -48,3 +52,4 @@ tower-service = "0.3.3"
 # libraries built around `rusqlite` should probably not enable it, which
 # is why it is not a default feature -- it could become hard to disable.
 rusqlite = { version = "0.32.0", features = ["bundled", "serde_json"] }
+iced = "0.13.1"
