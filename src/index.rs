@@ -1,4 +1,4 @@
-use crate::db;
+use crate::db::{get_all_documents, init_db};
 use crate::document::Document;
 use crate::lexer::tokenize;
 use crate::search::generate_snippets;
@@ -14,6 +14,7 @@ pub struct Index {
     pub documents: Vec<Document>,
     pub tokens: HashMap<String, i32>,
     pub idf: HashMap<String, f32>,
+    pub conn: rusqlite::Connection,
 }
 pub struct IndexStats {
     pub total_tokens: usize,
@@ -21,11 +22,15 @@ pub struct IndexStats {
 }
 impl Index {
     pub fn new(file_path: &str) -> Result<Self, io::Error> {
+        let conn = init_db().expect("Should have been able to initialize database");
+        let db_documents = get_all_documents(&conn);
+
         let documents = init(file_path)?;
         let mut index = Index {
             documents,
             tokens: HashMap::<String, i32>::new(),
             idf: HashMap::<String, f32>::new(),
+            conn,
         };
         index.build();
         Ok(index)
@@ -113,7 +118,7 @@ impl Index {
     }
     fn parse_query(&mut self, query: &str) -> Vec<String> {
         let mut in_quotes = false;
-        let mut current_phrase= String::new();
+        let mut current_phrase = String::new();
         let mut query_tokens = Vec::<String>::new();
 
         for c in query.chars() {
@@ -125,7 +130,7 @@ impl Index {
                         query_tokens.push(current_phrase.clone());
                         current_phrase.clear();
                     }
-                },
+                }
                 /// taco "taco bell" taco
                 ' ' => {
                     if !in_quotes && !current_phrase.is_empty() {
@@ -135,7 +140,7 @@ impl Index {
                     if in_quotes {
                         current_phrase.push(c);
                     }
-                },
+                }
                 _ => {
                     current_phrase.push(c);
                 }
@@ -146,6 +151,9 @@ impl Index {
     }
 }
 fn init(file_path: &str) -> Result<Vec<Document>, io::Error> {
+    // I think this should accept the db_documents and do a comparison
+    // to see if the document already exists in the db...
+    // if it does then don't add it
     println!("reading filepath {}", file_path);
     let dir = Path::new(file_path);
     if !dir.is_dir() {
