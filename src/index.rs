@@ -1,3 +1,4 @@
+use crate::db;
 use crate::db::{get_all_documents, init_db};
 use crate::document::Document;
 use crate::lexer::tokenize;
@@ -16,7 +17,6 @@ pub struct Index {
     pub documents: Vec<Document>,
     pub tokens: HashMap<String, i32>,
     pub idf: HashMap<String, f32>,
-    pub conn: rusqlite::Connection,
 }
 pub struct IndexStats {
     pub total_tokens: usize,
@@ -32,7 +32,6 @@ impl Index {
             documents,
             tokens: HashMap::<String, i32>::new(),
             idf: HashMap::<String, f32>::new(),
-            conn,
         };
         index.build();
         Ok(index)

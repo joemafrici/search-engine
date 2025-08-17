@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 pub fn init_db() -> Result<Connection> {
     // when on macos
-    // let conn = Connection::open("/Users/deepwater/Documents/search_engine.db")?;
-    let conn = Connection::open("/home/deepwater/Documents/search_engine.db")?;
+    let conn = Connection::open("/Users/deepwater/Documents/search_engine.db")?;
+    // let conn = Connection::open("/home/deepwater/Documents/search_engine.db")?;
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS documents (
