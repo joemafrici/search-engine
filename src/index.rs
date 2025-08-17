@@ -24,9 +24,8 @@ pub struct IndexStats {
 }
 impl Index {
     pub fn new(file_path: &str) -> Result<Self, io::Error> {
-        let conn = init_db().expect("Should have been able to initialize database");
-        let db_documents = get_all_documents(&conn);
-
+        // At this point documents contains database documents
+        // and documents read from filesystem on this run
         let documents = init(file_path)?;
         let mut index = Index {
             documents,
