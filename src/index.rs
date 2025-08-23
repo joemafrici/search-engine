@@ -1,5 +1,4 @@
 use crate::db;
-use crate::db::{get_all_documents, init_db};
 use crate::document::Document;
 use crate::lexer::tokenize;
 use crate::search::generate_snippets;
@@ -131,7 +130,7 @@ impl Index {
                         current_phrase.clear();
                     }
                 }
-                /// taco "taco bell" taco
+                // taco "taco bell" taco
                 ' ' => {
                     if !in_quotes && !current_phrase.is_empty() {
                         query_tokens.push(current_phrase.clone());
