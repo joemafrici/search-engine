@@ -77,10 +77,18 @@ pub extern "C" fn perform_search(query: *const c_char) -> *mut SearchResultsFFI 
         Err(_) => return ptr::null_mut(),
     };
 
+    // I guess doing it this way can get rather borked
+    // if I add concurrency
     let results = unsafe {
-        match &mut GLOBAL_INDEX {
-            Some(index) => index.search(query_str),
-            None => return ptr::null_mut(),
+        match &raw mut GLOBAL_INDEX {
+            ptr if !ptr.is_null() => { 
+                let option = &mut *ptr;
+                match option {
+                    Some(index) => index.search(query_str),
+                    None => return ptr::null_mut(),
+                }
+            },
+            _ => return ptr::null_mut(),
         }
     };
 
@@ -160,10 +168,18 @@ pub extern "C" fn free_search_results(results: *mut SearchResultsFFI) {
 
 #[no_mangle]
 pub extern "C" fn get_stats() -> *mut IndexStats {
+    // I guess doing it this way can get rather borked
+    // if I add concurrency
     let results = unsafe {
-        match &mut GLOBAL_INDEX {
-            Some(index) => index.get_stats(),
-            None => return ptr::null_mut(),
+        match &raw mut GLOBAL_INDEX {
+            ptr if !ptr.is_null() => {
+                let option = &mut *ptr;
+                match option {
+                    Some(index) => index.get_stats(),
+                    None => return ptr::null_mut(),
+                }
+            },
+            _ => return ptr::null_mut(),
         }
     };
 
@@ -186,10 +202,18 @@ pub extern "C" fn free_stats(stats: *mut IndexStats) {
 
 #[no_mangle]
 pub extern "C" fn get_all_document_names() -> *mut DocumentNamesFFI {
+    // I guess doing it this way can get rather borked
+    // if I add concurrency
     let names = unsafe {
-        match &mut GLOBAL_INDEX {
-            Some(index) => index.get_all_doc_names(),
-            None => return ptr::null_mut(),
+        match &raw mut GLOBAL_INDEX {
+            ptr if !ptr.is_null() => {
+                let option = &mut *ptr;
+                match option {
+                    Some(index) => index.get_all_doc_names(),
+                    None => return ptr::null_mut(),
+                }
+            },
+            _ => return ptr::null_mut(),
         }
     };
 
