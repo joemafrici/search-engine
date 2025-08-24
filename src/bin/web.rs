@@ -1,11 +1,13 @@
 use axum::extract::{Query, State};
 use axum::{http::Method, http::StatusCode, routing::get, Router};
+use axum::response::Html;
 use search_engine::index::Index;
 use std::collections::HashMap;
-use std::env;
+use std::{env, fs};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -26,12 +28,15 @@ async fn main() -> std::io::Result<()> {
     };
 
     let app = Router::new()
+        .route("/", get(handle_root))
         .route("/search", get(handle_client))
+        .nest_service("/assets", ServeDir::new("static"))
         .with_state(index)
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
-                .allow_methods([Method::GET]),
+                .allow_methods([Method::GET])
+                .allow_headers(Any),
         );
     let addr = SocketAddr::from(([0, 0, 0, 0], 7878));
     println!("Server listening on {}...", addr);
@@ -40,6 +45,10 @@ async fn main() -> std::io::Result<()> {
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
+}
+async fn handle_root() -> Html<String> {
+    let html = fs::read_to_string("static/index.html").unwrap();
+    Html(html)
 }
 async fn handle_client(
     Query(params): Query<HashMap<String, String>>,

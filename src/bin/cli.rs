@@ -1,8 +1,5 @@
 //use rusqlite::{Connection, Result};
-use search_engine::{
-    db::{get_all_documents, init_db},
-    index::Index,
-};
+use search_engine::index::Index;
 use std::env;
 use text_io::read;
 
@@ -12,7 +9,7 @@ fn main() {
     let mut index = {
         println!("building index from files...");
         let index =
-            Index::new("/Users/deepwater/code/search/processed_transcripts/")
+            Index::new("/Users/deepwater/books/epub")
                 .expect("failed to build index");
         index
     };
