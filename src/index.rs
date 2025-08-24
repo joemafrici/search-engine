@@ -260,7 +260,7 @@ fn process_epub(path: &Path, filename: &str) -> Result<Document, io::Error> {
     let mut content = String::new();
     let len = doc.spine.len();
     for _ in 0..len {
-        if let Some((_, html_content)) = doc.get_current_str() {
+        if let Some((html_content, _)) = doc.get_current_str() {
             let text = from_read(html_content.as_bytes(), html_content.len());
             content.push_str(&text);
             content.push_str("\n");
